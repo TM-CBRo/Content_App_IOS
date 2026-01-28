@@ -30,7 +30,7 @@ class ViewController: UIViewController, WKNavigationDelegate {
         let contentController = WKUserContentController()
 
         // ---------------------------------------------------------------------
-        // SCRIPT 1: BACKGROUND PLAY (VISIBILITY HIJACK – SAFE VERSION)
+        // SCRIPT 1 BACKGROUND PLAY (VISIBILITY HIJACK – SAFE VERSION)
         // ---------------------------------------------------------------------
         let backgroundScript = """
             Object.defineProperty(document, 'hidden', {
@@ -63,7 +63,7 @@ class ViewController: UIViewController, WKNavigationDelegate {
         contentController.addUserScript(bgUserScript)
 
         // ---------------------------------------------------------------------
-        // SCRIPT 2: AD BLOCKER (ROBUST + SAFE)
+        // SCRIPT 2 AD BLOCKER (ROBUST + SAFE)
         // ---------------------------------------------------------------------
         let adBlockScript = """
             // ---------------- CSS HIDING ----------------
