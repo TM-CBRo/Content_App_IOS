@@ -5,19 +5,23 @@ import AVFoundation
 class ViewController: UIViewController, WKNavigationDelegate {
 
     private var webView: WKWebView!
-    private var bottomToolbar: UIToolbar!
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = .black // Fundal negru ca sa nu se vada margini albe
+        view.backgroundColor = .black // Fundal negru
 
-        // 1. AUDIO SESSION
+        // ----------------------------------------------------------------
+        // 1. ACTIVARE AUDIO (EXTRAS DIN CODUL VECHI - FIX PENTRU BACKGROUND)
+        // ----------------------------------------------------------------
         do {
+            // Folosim exact setarile din codul vechi care mergeau
             try AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback, options: [.allowAirPlay, .defaultToSpeaker])
             try AVAudioSession.sharedInstance().setActive(true)
-        } catch { print("Audio error: \(error)") }
+        } catch {
+            print("Eroare audio: \(error)")
+        }
 
-        // 2. WEBVIEW CONFIG
+        // 2. CONFIGURARE BROWSER
         let config = WKWebViewConfiguration()
         config.allowsInlineMediaPlayback = true
         config.allowsPictureInPictureMediaPlayback = true
@@ -25,19 +29,30 @@ class ViewController: UIViewController, WKNavigationDelegate {
 
         let contentController = WKUserContentController()
 
-        // SCRIPT 1: BACKGROUND PLAY
+        // ----------------------------------------------------------------
+        // SCRIPT 1: BACKGROUND PLAY (EXTRAS DIN CODUL VECHI - EXACT ACELASI TEXT)
+        // ----------------------------------------------------------------
+        // Acesta este scriptul "verbos" care pacaleste YouTube sa creada ca e vizibil
         let backgroundScript = """
-            Object.defineProperty(document, 'hidden', { get: () => false });
-            Object.defineProperty(document, 'visibilityState', { get: () => 'visible' });
-            window.addEventListener('visibilitychange', e => e.stopImmediatePropagation(), true);
+            // Spunem browserului ca suntem mereu vizibili, chiar si cand ecranul e stins
+            Object.defineProperty(document, 'hidden', { get: function() { return false; } });
+            Object.defineProperty(document, 'visibilityState', { get: function() { return 'visible'; } });
+            Object.defineProperty(document, 'webkitVisibilityState', { get: function() { return 'visible'; } });
+            
+            // Oprim evenimentul care anunta ca ai iesit din aplicatie
+            window.addEventListener('visibilitychange', function(e) { e.stopImmediatePropagation(); }, true);
+            window.addEventListener('webkitvisibilitychange', function(e) { e.stopImmediatePropagation(); }, true);
         """
-        #imageLiteral(resourceName: "Screenshot 2026-01-29 at 14.49.56.png")
+        
+        // Injectam LA INCEPUT (.atDocumentStart) - CRITIC
         contentController.addUserScript(WKUserScript(source: backgroundScript, injectionTime: .atDocumentStart, forMainFrameOnly: true))
 
-        // SCRIPT 2: AD BLOCKER (CSS CORECTAT)
-        // Am scos regula care ascundea Header-ul YouTube, ca sa arate mai natural
+        // ----------------------------------------------------------------
+        // SCRIPT 2: AD BLOCKER (DIN CODUL NOU - CEL MAI BUN)
+        // ----------------------------------------------------------------
         let adBlockScript = """
             const css = `
+                /* Ascunde reclamele si bannerele, dar lasa Header-ul (Lupa/Search) */
                 .ytp-ad-module, .ad-container,
                 ytm-promoted-video-renderer,
                 ytm-item-section-renderer[data-is-ad="true"],
@@ -80,87 +95,39 @@ class ViewController: UIViewController, WKNavigationDelegate {
 
         config.userContentController = contentController
 
-        // 3. UI SETUP (WEBVIEW + TOOLBAR)
-        setupUI(config: config)
+        // 3. UI SETUP (FULL SCREEN - DIN CODUL NOU)
+        setupFullScreenUI(config: config)
         
         // Incarca URL
         webView.load(URLRequest(url: URL(string: "https://m.youtube.com")!))
     }
 
-    private func setupUI(config: WKWebViewConfiguration) {
+    private func setupFullScreenUI(config: WKWebViewConfiguration) {
         // A. Creare WebView
         webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = self
+        
+        // Gesturi Swipe Back/Forward
+        webView.allowsBackForwardNavigationGestures = true
+        
         webView.isOpaque = false
         webView.backgroundColor = .black
         webView.scrollView.backgroundColor = .black
         webView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(webView)
 
-        // B. Creare Toolbar (Bara de jos)
-        bottomToolbar = UIToolbar()
-        bottomToolbar.barStyle = .black // Stil Negru
-        bottomToolbar.isTranslucent = false // Negru solid
-        bottomToolbar.tintColor = .white // Icoane albe
-        bottomToolbar.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(bottomToolbar)
-
-        // C. Butoanele din Toolbar
-        let homeIcon = UIImage(systemName: "house.fill")
-        let searchIcon = UIImage(systemName: "magnifyingglass")
-        let backIcon = UIImage(systemName: "chevron.backward")
-        
-        let homeBtn = UIBarButtonItem(image: homeIcon, style: .plain, target: self, action: #selector(goHome))
-        let searchBtn = UIBarButtonItem(image: searchIcon, style: .plain, target: self, action: #selector(openSearch))
-        let backBtn = UIBarButtonItem(image: backIcon, style: .plain, target: self, action: #selector(goBack))
-        let spacer = UIBarButtonItem(barButtonSystemItem: .flexibleSpace, target: nil, action: nil)
-
-        // Ordinea butoanelor: Back --- Spatiu --- Home --- Spatiu --- Search
-        bottomToolbar.items = [backBtn, spacer, homeBtn, spacer, searchBtn]
-
-        // D. Constraints (Asezarea in pagina)
+        // B. Constraints (FULL SCREEN - Pana jos de tot)
         NSLayoutConstraint.activate([
-            // WebView ocupa de sus pana la Toolbar
+            // Se lipeste de sus (Safe Area)
             webView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            
+            // Se lipeste de laterale
             webView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             webView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            webView.bottomAnchor.constraint(equalTo: bottomToolbar.topAnchor), // Se opreste la toolbar
-
-            // Toolbar ocupa partea de jos
-            bottomToolbar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            bottomToolbar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            bottomToolbar.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
-            bottomToolbar.heightAnchor.constraint(equalToConstant: 44) // Inaltime standard
+            
+            // Se lipeste de JOS DE TOT (view.bottomAnchor), acoperind spatiul negru
+            webView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
-    }
-
-    // --- ACTIUNI BUTOANE ---
-
-    @objc private func goHome() {
-        let url = URL(string: "https://m.youtube.com")!
-        webView.load(URLRequest(url: url))
-    }
-
-    @objc private func goBack() {
-        if webView.canGoBack {
-            webView.goBack()
-        } else {
-            // Daca nu mai ai unde sa dai back, te duce Home
-            goHome()
-        }
-    }
-
-    @objc private func openSearch() {
-        let alert = UIAlertController(title: "Search YouTube", message: nil, preferredStyle: .alert)
-        alert.addTextField { $0.placeholder = "Search..." }
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Go", style: .default) { _ in
-            guard let text = alert.textFields?.first?.text, !text.isEmpty,
-                  let encoded = text.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else { return }
-            let url = URL(string: "https://m.youtube.com/results?search_query=\(encoded)")!
-            self.webView.load(URLRequest(url: url))
-        })
-        present(alert, animated: true)
     }
     
     // Status Bar Alb
